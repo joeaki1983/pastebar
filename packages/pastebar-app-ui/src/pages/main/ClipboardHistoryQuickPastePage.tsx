@@ -115,7 +115,7 @@ async function invokeCopyPasteHistoryItem(
 
 export default function ClipboardHistoryQuickPastePage() {
   const [savingItem, setSavingItem] = useState<UniqueIdentifier | null>(null)
-  const isShowSearch = useSignal(false)
+  const isShowSearch = useSignal(true)
   const { movePinnedClipboardHistoryUpDown } = useMovePinnedClipboardHistoryUpDown()
 
   const {
@@ -376,6 +376,16 @@ export default function ClipboardHistoryQuickPastePage() {
       }
     }
   }, [isShowSearch.value])
+
+  // Auto-focus search input when component mounts
+  useEffect(() => {
+    if (searchHistoryInputRef?.current) {
+      // Use a small delay to ensure the component is fully rendered
+      setTimeout(() => {
+        searchHistoryInputRef?.current?.focus()
+      }, 100)
+    }
+  }, [])
 
   useHotkeys(['ctrl+f', 'meta+f', 'ctrl+k', 'meta+k', '/'], toggleSearch)
 
