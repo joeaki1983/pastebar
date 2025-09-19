@@ -262,6 +262,23 @@ export default function ClipboardHistoryQuickPastePage() {
     appFilters,
   })
 
+  useEffect(() => {
+    const unlistenPromise = listen('window-events', event => {
+      if (event.payload === 'quickpaste-window-opened') {
+        setSearchTerm('')
+
+        if (searchHistoryInputRef.current) {
+          searchHistoryInputRef.current.value = ''
+          searchHistoryInputRef.current.focus()
+        }
+      }
+    })
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten())
+    }
+  }, [])
+
   const keyboardSelectedItemId = useMemo(() => {
     if (keyboardIndexSelectedItem.value >= 0) {
       setIsShowHistoryPinned(false)

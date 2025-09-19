@@ -672,6 +672,10 @@ async fn open_quickpaste_window(
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())?;
 
+    if let Err(e) = app_handle.emit_all("window-events", "quickpaste-window-opened") {
+      eprintln!("Failed to emit quickpaste window opened event: {}", e);
+    }
+
     return Ok(());
   }
 
@@ -766,6 +770,10 @@ async fn open_quickpaste_window(
 
   quickpaste_window.show().map_err(|e| e.to_string())?;
   quickpaste_window.set_focus().map_err(|e| e.to_string())?;
+
+  if let Err(e) = app_handle.emit_all("window-events", "quickpaste-window-opened") {
+    eprintln!("Failed to emit quickpaste window opened event: {}", e);
+  }
 
   Ok(())
 }
