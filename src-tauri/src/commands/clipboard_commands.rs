@@ -732,22 +732,19 @@ pub fn paste_clipboard(delay: i32) -> String {
   if delay > 0 {
     thread::sleep(Duration::from_secs(delay as u64));
   }
+
   #[cfg(target_os = "macos")]
-  fn query_accessibility_permissions() -> bool {
-    macos_accessibility_client::accessibility::application_is_trusted_with_prompt()
+  {
+    // request prompt only when PasteBar still lacks the permission; otherwise avoid redundant dialogs
+    if macos_accessibility_client::accessibility::application_is_trusted() {
+      VKey.press_paste();
+    } else if macos_accessibility_client::accessibility::application_is_trusted_with_prompt() {
+      VKey.press_paste();
+    }
   }
 
   #[cfg(target_os = "windows")]
-  fn query_accessibility_permissions() -> bool {
-    return true;
-  }
-
-  if delay > 0 {
-    thread::sleep(Duration::from_secs(delay as u64));
-  }
-
-  #[cfg(any(target_os = "windows", target_os = "macos"))]
-  if query_accessibility_permissions() {
+  {
     VKey.press_paste();
   }
 

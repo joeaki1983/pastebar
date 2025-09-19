@@ -228,24 +228,19 @@ async fn quickpaste_hide_paste_close(
     .get_window("quickpaste")
     .ok_or_else(|| "Failed to get quickpaste window".to_string())?;
 
-  // Hide the window
-  window
-    .hide()
-    .map_err(|e| format!("Failed to hide window: {}", e))?;
+  // Hide window through the shared helper so focus restoration and state reset are consistent.
+  hide_quickpaste_window(&window, &app_handle)?;
 
-  // Return focus to the previous window
-  #[cfg(target_os = "macos")]
-  return_focus_to_previous_window();
-
-  sleep(StdDuration::from_millis(200)).await;
+  // Give the OS a short moment to move focus back before synthesising the paste shortcut.
+  sleep(StdDuration::from_millis(120)).await;
 
   // Copy and paste the history item
   clipboard_commands::copy_paste_history_item(app_handle.clone(), history_id, 0);
 
-  // Close the window
-  window
-    .close()
-    .map_err(|e| format!("Failed to close window: {}", e))?;
+  // Refresh the webview while hidden so next show is backed by a clean renderer state.
+  if let Err(e) = window.eval("window.location.reload();") {
+    eprintln!("Failed to reload quickpaste webview: {}", e);
+  }
 
   Ok(())
 }
