@@ -108,6 +108,12 @@ export default function UserPreferences() {
     setIsSingleClickKeyboardFocus, // New setter
     isSingleClickToCopyPasteQuickWindow,
     setIsSingleClickToCopyPasteQuickWindow,
+    isMainWindowAutoCloseOnCopy,
+    setIsMainWindowAutoCloseOnCopy,
+    isMainWindowAutoInsertOnCopy,
+    setIsMainWindowAutoInsertOnCopy,
+    isMainWindowAutoFocusSearchOnShow,
+    setIsMainWindowAutoFocusSearchOnShow,
     isDoubleClickTrayToOpenEnabledOnWindows,
     setIsDoubleClickTrayToOpenEnabledOnWindows,
     isLeftClickTrayToOpenEnabledOnWindows,
@@ -954,6 +960,81 @@ export default function UserPreferences() {
                       <Text className="text-sm text-muted-foreground">
                         {t(
                           'Set keyboard focus with a single click. Disables single-click copy/paste if set.', // Updated Description Key
+                          { ns: 'settings2' }
+                        )}
+                      </Text>
+                    </CardContent>
+                  </Card>
+                </Box>
+
+                <Box className="animate-in fade-in max-w-xl mt-4">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+                      <CardTitle className="animate-in fade-in text-md font-medium w-full">
+                        {t('Auto-close main window on copy', { ns: 'settings2' })}
+                      </CardTitle>
+                      <Switch
+                        checked={isMainWindowAutoCloseOnCopy}
+                        className="ml-auto"
+                        onCheckedChange={() => {
+                          setIsMainWindowAutoCloseOnCopy(!isMainWindowAutoCloseOnCopy)
+                        }}
+                      />
+                    </CardHeader>
+                    <CardContent>
+                      <Text className="text-sm text-muted-foreground">
+                        {t(
+                          'When enabled, the main window will automatically close after clicking a history item to copy it.',
+                          { ns: 'settings2' }
+                        )}
+                      </Text>
+                    </CardContent>
+                  </Card>
+                </Box>
+
+                <Box className="animate-in fade-in max-w-xl mt-4">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+                      <CardTitle className="animate-in fade-in text-md font-medium w-full">
+                        {t('Auto-insert on copy', { ns: 'settings2' })}
+                      </CardTitle>
+                      <Switch
+                        checked={isMainWindowAutoInsertOnCopy}
+                        className="ml-auto"
+                        onCheckedChange={() => {
+                          setIsMainWindowAutoInsertOnCopy(!isMainWindowAutoInsertOnCopy)
+                        }}
+                      />
+                    </CardHeader>
+                    <CardContent>
+                      <Text className="text-sm text-muted-foreground">
+                        {t(
+                          'When enabled, clicking a history item will automatically insert it into the currently focused input field.',
+                          { ns: 'settings2' }
+                        )}
+                      </Text>
+                    </CardContent>
+                  </Card>
+                </Box>
+
+                <Box className="animate-in fade-in max-w-xl mt-4">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+                      <CardTitle className="animate-in fade-in text-md font-medium w-full">
+                        {t('Auto-focus search on window show', { ns: 'settings2' })}
+                      </CardTitle>
+                      <Switch
+                        checked={isMainWindowAutoFocusSearchOnShow}
+                        className="ml-auto"
+                        onCheckedChange={() => {
+                          setIsMainWindowAutoFocusSearchOnShow(!isMainWindowAutoFocusSearchOnShow)
+                        }}
+                      />
+                    </CardHeader>
+                    <CardContent>
+                      <Text className="text-sm text-muted-foreground">
+                        {t(
+                          'When enabled, the search input will automatically be focused and cleared when the main window is shown.',
                           { ns: 'settings2' }
                         )}
                       </Text>

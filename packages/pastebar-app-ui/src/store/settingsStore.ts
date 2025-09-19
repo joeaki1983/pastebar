@@ -107,6 +107,9 @@ type Settings = {
   isSingleClickToCopyPasteQuickWindow: boolean
   isQuickPasteCopyOnly: boolean
   isQuickPasteAutoClose: boolean
+  isMainWindowAutoCloseOnCopy: boolean
+  isMainWindowAutoInsertOnCopy: boolean
+  isMainWindowAutoFocusSearchOnShow: boolean
   isKeepPinnedOnClearEnabled: boolean
   isKeepStarredOnClearEnabled: boolean
   hasPinProtectedCollections: boolean
@@ -326,6 +329,9 @@ const initialState: SettingsStoreState & Settings = {
   isSingleClickToCopyPasteQuickWindow: false,
   isQuickPasteCopyOnly: false,
   isQuickPasteAutoClose: true,
+  isMainWindowAutoCloseOnCopy: false,
+  isMainWindowAutoInsertOnCopy: false,
+  isMainWindowAutoFocusSearchOnShow: true,
   isKeepPinnedOnClearEnabled: false,
   isKeepStarredOnClearEnabled: false,
   protectedCollections: [],
@@ -416,6 +422,9 @@ const initialState: SettingsStoreState & Settings = {
   setIsSingleClickToCopyPasteQuickWindow: () => {},
   setIsQuickPasteCopyOnly: () => {},
   setIsQuickPasteAutoClose: () => {},
+  setIsMainWindowAutoCloseOnCopy: () => {},
+  setIsMainWindowAutoInsertOnCopy: () => {},
+  setIsMainWindowAutoFocusSearchOnShow: () => {},
   setIsKeepPinnedOnClearEnabled: () => {},
   setIsKeepStarredOnClearEnabled: () => {},
   initConstants: () => {},
@@ -859,6 +868,18 @@ export const settingsStore = createStore<SettingsStoreState & Settings>()((set, 
   setIsQuickPasteAutoClose: async (isEnabled: boolean) => {
     get().syncStateUpdate('isQuickPasteAutoClose', isEnabled)
     return get().updateSetting('isQuickPasteAutoClose', isEnabled)
+  },
+  setIsMainWindowAutoCloseOnCopy: async (isEnabled: boolean) => {
+    get().syncStateUpdate('isMainWindowAutoCloseOnCopy', isEnabled)
+    return get().updateSetting('isMainWindowAutoCloseOnCopy', isEnabled)
+  },
+  setIsMainWindowAutoInsertOnCopy: async (isEnabled: boolean) => {
+    get().syncStateUpdate('isMainWindowAutoInsertOnCopy', isEnabled)
+    return get().updateSetting('isMainWindowAutoInsertOnCopy', isEnabled)
+  },
+  setIsMainWindowAutoFocusSearchOnShow: async (isEnabled: boolean) => {
+    get().syncStateUpdate('isMainWindowAutoFocusSearchOnShow', isEnabled)
+    return get().updateSetting('isMainWindowAutoFocusSearchOnShow', isEnabled)
   },
   setIsKeepPinnedOnClearEnabled: async (isEnabled: boolean) => {
     get().syncStateUpdate('isKeepPinnedOnClearEnabled', isEnabled)

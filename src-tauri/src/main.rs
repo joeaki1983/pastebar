@@ -119,6 +119,105 @@ struct SettingUpdatePayload {
   value_number: Option<i32>,
 }
 
+struct QuickPasteState(Mutex<bool>);
+
+fn calculate_quickpaste_position(
+  window: &tauri::Window,
+  window_width: f64,
+  window_height: f64,
+) -> Result<tauri::LogicalPosition<f64>, String> {
+  let position = Mouse::get_mouse_position();
+
+  let (cursor_x, cursor_y) = match position {
+    Mouse::Position { x, y } => (x, y),
+    Mouse::Error => {
+      println!("Failed to get mouse position, using default (100, 100)");
+      (100, 100)
+    }
+  };
+
+  let monitors = window.available_monitors().map_err(|e| e.to_string())?;
+
+  let mut global_width = 0;
+  let mut global_height = 0;
+  let mut scale_factor = 1.0;
+
+  for monitor in &monitors {
+    scale_factor = monitor.scale_factor();
+    let monitor_size = monitor.size();
+
+    let actual_width = (monitor_size.width as f64 / scale_factor).round() as i32;
+    let actual_height = (monitor_size.height as f64 / scale_factor).round() as i32;
+
+    global_width += actual_width;
+    global_height = global_height.max(actual_height);
+  }
+
+  #[cfg(target_os = "macos")]
+  let cursor_x_scale = (cursor_x as f64).round() as i32;
+  #[cfg(target_os = "macos")]
+  let cursor_y_scale = (cursor_y as f64).round() as i32;
+
+  #[cfg(target_os = "windows")]
+  let cursor_x_scale = (cursor_x as f64 / scale_factor).round() as i32;
+  #[cfg(target_os = "windows")]
+  let cursor_y_scale = (cursor_y as f64 / scale_factor).round() as i32;
+
+  #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+  let cursor_x_scale = cursor_x;
+  #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+  let cursor_y_scale = cursor_y;
+
+  let window_x = if cursor_x_scale + window_width as i32 + 50 > global_width {
+    cursor_x_scale - window_width as i32 - 50
+  } else {
+    cursor_x_scale + 50
+  };
+
+  let window_y = if cursor_y_scale + window_height as i32 > global_height {
+    cursor_y_scale - window_height as i32 - 50
+  } else {
+    cursor_y_scale - 50
+  };
+
+  Ok(tauri::LogicalPosition::new(
+    window_x as f64,
+    window_y as f64,
+  ))
+}
+
+fn hide_quickpaste_window(
+  window: &tauri::Window,
+  app_handle: &tauri::AppHandle,
+) -> Result<(), String> {
+  let should_restore_main = {
+    let state = app_handle.state::<QuickPasteState>();
+    let mut guard = state.0.lock().unwrap();
+    let should_restore = *guard;
+    *guard = false;
+    should_restore
+  };
+
+  window.hide().map_err(|e| e.to_string())?;
+
+  #[cfg(target_os = "macos")]
+  {
+    return_focus_to_previous_window();
+    if should_restore_main {
+      if let Some(main_window) = app_handle.get_window("main") {
+        main_window.show().map_err(|e| e.to_string())?;
+        main_window.set_focus().map_err(|e| e.to_string())?;
+      }
+    }
+  }
+
+  if let Err(e) = app_handle.emit_all("window-events", "quickpaste-window-closed") {
+    eprintln!("Failed to emit window closed event: {}", e);
+  }
+
+  Ok(())
+}
+
 #[tauri::command]
 async fn quickpaste_hide_paste_close(
   app_handle: tauri::AppHandle,
@@ -527,21 +626,75 @@ async fn open_history_window(app_handle: tauri::AppHandle) -> Result<(), String>
 }
 
 #[tauri::command]
-async fn open_quickpaste_window(app_handle: tauri::AppHandle, title: String) -> Result<(), String> {
-  if let Some(window) = app_handle.get_window("quickpaste") {
-    window.close().map_err(|e| e.to_string())?;
-    return Ok(());
-  }
-
+async fn open_quickpaste_window(
+  app_handle: tauri::AppHandle,
+  title: String,
+  quickpaste_state: tauri::State<'_, QuickPasteState>,
+) -> Result<(), String> {
   let window_width = 310.0;
   let window_height = 420.0;
 
-  let main_window = app_handle.get_window("main").unwrap();
-  let is_main_window_visible = main_window.is_visible().unwrap();
+  let main_window = app_handle.get_window("main");
 
-  if is_main_window_visible {
+  if let Some(window) = app_handle.get_window("quickpaste") {
+    let is_visible = window.is_visible().unwrap_or(false);
+    if is_visible {
+      hide_quickpaste_window(&window, &app_handle)?;
+      return Ok(());
+    }
+
+    let mut restore_main_window = false;
+
     #[cfg(target_os = "macos")]
-    main_window.hide().map_err(|e| e.to_string())?;
+    {
+      restore_main_window = main_window
+        .as_ref()
+        .and_then(|w| w.is_visible().ok())
+        .unwrap_or(false);
+      if restore_main_window {
+        if let Some(main) = main_window.as_ref() {
+          if let Err(e) = main.hide() {
+            eprintln!("Failed to hide main window: {}", e);
+          }
+        }
+      }
+    }
+
+    {
+      let mut guard = quickpaste_state.0.lock().unwrap();
+      *guard = restore_main_window;
+    }
+
+    let position = calculate_quickpaste_position(&window, window_width, window_height)?;
+
+    window.set_position(position).map_err(|e| e.to_string())?;
+
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())?;
+
+    return Ok(());
+  }
+
+  let mut restore_main_window = false;
+
+  #[cfg(target_os = "macos")]
+  {
+    restore_main_window = main_window
+      .as_ref()
+      .and_then(|w| w.is_visible().ok())
+      .unwrap_or(false);
+    if restore_main_window {
+      if let Some(main) = main_window.as_ref() {
+        if let Err(e) = main.hide() {
+          eprintln!("Failed to hide main window: {}", e);
+        }
+      }
+    }
+  }
+
+  {
+    let mut guard = quickpaste_state.0.lock().unwrap();
+    *guard = restore_main_window;
   }
 
   let window_builder = tauri::WindowBuilder::new(
@@ -561,103 +714,51 @@ async fn open_quickpaste_window(app_handle: tauri::AppHandle, title: String) -> 
 
   let quickpaste_window = window_builder.build().map_err(|e| e.to_string())?;
 
-  let position = Mouse::get_mouse_position();
-
-  let (cursor_x, cursor_y) = match position {
-    Mouse::Position { x, y } => (x, y),
-    Mouse::Error => {
-      println!("Failed to get mouse position, using default (100, 100)");
-      (100, 100)
-    }
-  };
-
-  // Get all monitors
-  let monitors = quickpaste_window
-    .available_monitors()
-    .map_err(|e| e.to_string())?;
-
-  // Calculate global screen size
-  let mut global_width = 0;
-  let mut global_height = 0;
-  let mut scale_factor = 1.0;
-
-  for monitor in &monitors {
-    scale_factor = monitor.scale_factor(); // Use the scale factor of the primary monitor
-    println!("Monitor scale factor: {}", scale_factor);
-    let monitor_size = monitor.size();
-
-    println!(
-      "Monitor size: {}x{}",
-      monitor_size.width, monitor_size.height
-    );
-
-    let actual_width = (monitor_size.width as f64 / scale_factor).round() as i32;
-    let actual_height = (monitor_size.height as f64 / scale_factor).round() as i32;
-
-    global_width += actual_width;
-    global_height = global_height.max(actual_height);
-  }
-
-  #[cfg(target_os = "macos")]
-  let cursor_x_scale = (cursor_x as f64).round() as i32;
-  #[cfg(target_os = "macos")]
-  let cursor_y_scale = (cursor_y as f64).round() as i32;
-
-  #[cfg(target_os = "windows")]
-  let cursor_x_scale = (cursor_x as f64 / scale_factor).round() as i32;
-  #[cfg(target_os = "windows")]
-  let cursor_y_scale = (cursor_y as f64 / scale_factor).round() as i32;
-
-  // Calculate the window position in logical coordinates
-  let window_x = if cursor_x_scale + window_width as i32 + 50 > global_width {
-    cursor_x_scale - window_width as i32 - 50 // Place to the left if not enough space on the right
-  } else {
-    cursor_x_scale + 50
-  };
-
-  let window_y = if cursor_y_scale + window_height as i32 > global_height {
-    cursor_y_scale - window_height as i32 - 50
-  } else {
-    cursor_y_scale - 50
-  };
+  let position = calculate_quickpaste_position(&quickpaste_window, window_width, window_height)?;
 
   quickpaste_window
-    .set_position(tauri::LogicalPosition {
-      x: window_x,
-      y: window_y,
-    })
+    .set_position(position)
     .map_err(|e| e.to_string())?;
 
   {
     let app_handle_clone = app_handle.clone();
 
     quickpaste_window.on_window_event(move |e| match e {
-      tauri::WindowEvent::Destroyed => {
-        #[cfg(target_os = "macos")]
-        {
-          return_focus_to_previous_window();
-          if is_main_window_visible {
-            let _ = app_handle_clone
-              .get_window("main")
-              .unwrap()
-              .show()
-              .map_err(|e| e.to_string());
-          }
-        }
-
-        app_handle_clone
-          .emit_all("window-events", "quickpaste-window-closed")
-          .unwrap_or_else(|e| eprintln!("Failed to emit window closed event: {}", e));
-      }
       tauri::WindowEvent::CloseRequested { api, .. } => {
         api.prevent_close();
         if let Some(window) = app_handle_clone.get_window("quickpaste") {
-          let _ = window
-            .close()
-            .map_err(|e| eprintln!("Failed to close window: {}", e));
+          if let Err(err) = hide_quickpaste_window(&window, &app_handle_clone) {
+            eprintln!("Failed to hide quickpaste window: {}", err);
+          }
         }
+      }
+      tauri::WindowEvent::Destroyed => {
+        let should_restore_main = {
+          let state = app_handle_clone.state::<QuickPasteState>();
+          let mut guard = state.0.lock().unwrap();
+          let restore = *guard;
+          *guard = false;
+          restore
+        };
+
         #[cfg(target_os = "macos")]
-        return_focus_to_previous_window();
+        {
+          return_focus_to_previous_window();
+          if should_restore_main {
+            if let Some(main_window) = app_handle_clone.get_window("main") {
+              if let Err(e) = main_window.show() {
+                eprintln!("Failed to show main window: {}", e);
+              }
+              if let Err(e) = main_window.set_focus() {
+                eprintln!("Failed to focus main window: {}", e);
+              }
+            }
+          }
+        }
+
+        if let Err(e) = app_handle_clone.emit_all("window-events", "quickpaste-window-closed") {
+          eprintln!("Failed to emit window closed event: {}", e);
+        }
       }
       _ => {}
     });
@@ -665,13 +766,6 @@ async fn open_quickpaste_window(app_handle: tauri::AppHandle, title: String) -> 
 
   quickpaste_window.show().map_err(|e| e.to_string())?;
   quickpaste_window.set_focus().map_err(|e| e.to_string())?;
-
-  // println!(
-  //   "User cursor position: {}x{}",
-  //   cursor_x_scale, cursor_y_scale
-  // );
-  // println!("Global window size: {}x{}", global_width, global_height);
-  // println!("Window position: {}x{}", window_x, window_y);
 
   Ok(())
 }
@@ -681,11 +775,13 @@ async fn main() {
   dotenv().ok();
   let db_items_state = DbItems(Mutex::new(Vec::new()));
   let db_recent_history_items_state = DbRecentHistoryItems(Mutex::new(Vec::new()));
+  let quickpaste_state = QuickPasteState(Mutex::new(false));
   tauri_plugin_deep_link::prepare("app.anothervision.pasteBar");
 
   tauri::Builder::default()
     .manage(db_items_state)
     .manage(db_recent_history_items_state)
+    .manage(quickpaste_state)
     .on_system_tray_event(move |app, event| match event {
       SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
         "quit" => {

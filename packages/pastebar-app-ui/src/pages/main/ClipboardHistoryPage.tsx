@@ -14,6 +14,8 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { Portal } from '@radix-ui/react-portal'
 import { listen } from '@tauri-apps/api/event'
+import { appWindow } from '@tauri-apps/api/window'
+import { invoke } from '@tauri-apps/api'
 import { MainContainer } from '~/layout/Layout'
 import {
   clipboardHistoryStoreAtom,
@@ -251,38 +253,6 @@ export default function ClipboardHistoryPage() {
   const [pastedItem, pastingCountDown, setPastedItem, runSequencePaste] =
     usePasteHistoryItem({})
 
-  const [savingItem, setSavingItem] = useState<UniqueIdentifier | null>(null)
-  const { updateItemValueByHistoryId } = useUpdateItemValueByHistoryId()
-  const { pinnedClipboardHistoryByIds } = usePinnedClipboardHistoryByIds()
-  const { unPinAllClipboardHistory } = useUnpinAllClipboardHistory()
-  const { movePinnedClipboardHistoryUpDown } = useMovePinnedClipboardHistoryUpDown()
-
-  const [historyFilters, setHistoryFilters] = useState<string[]>([])
-  const [codeFilters, setCodeFilters] = useState<string[]>([])
-  const [appFilters, setAppFilters] = useState<string[]>([])
-
-  const historyListSimpleBarRef = useRef<HTMLElement | null>(null)
-  const [isMenuDeleting, setIsMenuDeleting] = useState(false)
-
-  const scrollBarRef = useRef<SimpleBarOptions | null>(null)
-  const [activeDragId, setActiveDragId] = useState<UniqueIdentifier | null>(null)
-  const [brokenImageItems, setBrokenImageItems] = useState<UniqueIdentifier[]>([])
-  const [dragOverTrashId, setDragOverTrashId] = useState<UniqueIdentifier | null>(null)
-  const [dragOverPinnedId, setDragOverPinnedId] = useState<UniqueIdentifier | null>(null)
-  const [dragOverBoardId, setDragOverBoardId] = useState<UniqueIdentifier | null>(null)
-  const [dragOverClipId, setDragOverClipId] = useState<UniqueIdentifier | null>(null)
-  const [expandedItems, setExpandedItems] = useState<UniqueIdentifier[]>([])
-  const [wrappedTextItems, setWrappedTextItems] = useState<UniqueIdentifier[]>([])
-  const [selectedHistoryItems, setSelectedHistoryItems] = useState<UniqueIdentifier[]>([])
-  const [showSelectHistoryItems, setShowSelectHistoryItems] = useState(false)
-  const [isDragPinnedHistory, setIsDragPinnedHistory] = useState(false)
-
-  // Add pinned item navigation state using navigation context approach
-  const keyboardIndexSelectedPinnedItem = useSignal<number>(-1)
-  
-  // Track if pinned history panel was auto-opened by keyboard navigation
-  const pinnedPanelAutoOpenedByKeyboard = useSignal<boolean>(false)
-
   const {
     isScrolling,
     setIsScrolling,
@@ -314,8 +284,75 @@ export default function ClipboardHistoryPage() {
     isSavedClipsPanelVisibleOnly,
     isSingleClickToCopyPaste,
     isSingleClickKeyboardFocus,
+    isMainWindowAutoCloseOnCopy,
+    isMainWindowAutoInsertOnCopy,
+    isMainWindowAutoFocusSearchOnShow,
     historyPreviewLineLimit,
   } = useAtomValue(settingsStoreAtom)
+
+  // Enhanced copy/paste handlers with auto-close and auto-insert functionality
+  const handleCopyWithAutoActions = useCallback(async (historyId: UniqueIdentifier) => {
+    setCopiedItem(historyId)
+
+    if (isMainWindowAutoInsertOnCopy) {
+      // Auto-insert functionality - paste to active input field
+      try {
+        await invoke('copy_paste_history_item', { historyId, delay: 0 })
+      } catch (error) {
+        console.error('Failed to auto-insert:', error)
+      }
+    }
+
+    if (isMainWindowAutoCloseOnCopy) {
+      // Auto-close main window
+      setTimeout(() => {
+        appWindow.hide()
+      }, 100) // Small delay to ensure copy operation completes
+    }
+  }, [setCopiedItem, isMainWindowAutoCloseOnCopy, isMainWindowAutoInsertOnCopy])
+
+  const handleCopyPasteWithAutoActions = useCallback(async (historyId: UniqueIdentifier, delay?: number) => {
+    setPastedItem(historyId)
+
+    if (isMainWindowAutoCloseOnCopy) {
+      // Auto-close main window
+      setTimeout(() => {
+        appWindow.hide()
+      }, 100) // Small delay to ensure paste operation completes
+    }
+  }, [setPastedItem, isMainWindowAutoCloseOnCopy])
+
+  const [savingItem, setSavingItem] = useState<UniqueIdentifier | null>(null)
+  const { updateItemValueByHistoryId } = useUpdateItemValueByHistoryId()
+  const { pinnedClipboardHistoryByIds } = usePinnedClipboardHistoryByIds()
+  const { unPinAllClipboardHistory } = useUnpinAllClipboardHistory()
+  const { movePinnedClipboardHistoryUpDown } = useMovePinnedClipboardHistoryUpDown()
+
+  const [historyFilters, setHistoryFilters] = useState<string[]>([])
+  const [codeFilters, setCodeFilters] = useState<string[]>([])
+  const [appFilters, setAppFilters] = useState<string[]>([])
+
+  const historyListSimpleBarRef = useRef<HTMLElement | null>(null)
+  const [isMenuDeleting, setIsMenuDeleting] = useState(false)
+
+  const scrollBarRef = useRef<SimpleBarOptions | null>(null)
+  const [activeDragId, setActiveDragId] = useState<UniqueIdentifier | null>(null)
+  const [brokenImageItems, setBrokenImageItems] = useState<UniqueIdentifier[]>([])
+  const [dragOverTrashId, setDragOverTrashId] = useState<UniqueIdentifier | null>(null)
+  const [dragOverPinnedId, setDragOverPinnedId] = useState<UniqueIdentifier | null>(null)
+  const [dragOverBoardId, setDragOverBoardId] = useState<UniqueIdentifier | null>(null)
+  const [dragOverClipId, setDragOverClipId] = useState<UniqueIdentifier | null>(null)
+  const [expandedItems, setExpandedItems] = useState<UniqueIdentifier[]>([])
+  const [wrappedTextItems, setWrappedTextItems] = useState<UniqueIdentifier[]>([])
+  const [selectedHistoryItems, setSelectedHistoryItems] = useState<UniqueIdentifier[]>([])
+  const [showSelectHistoryItems, setShowSelectHistoryItems] = useState(false)
+  const [isDragPinnedHistory, setIsDragPinnedHistory] = useState(false)
+
+  // Add pinned item navigation state using navigation context approach
+  const keyboardIndexSelectedPinnedItem = useSignal<number>(-1)
+  
+  // Track if pinned history panel was auto-opened by keyboard navigation
+  const pinnedPanelAutoOpenedByKeyboard = useSignal<boolean>(false)
 
   const { t } = useTranslation()
 
@@ -500,7 +537,7 @@ export default function ClipboardHistoryPage() {
         return
       }
 
-      setCopiedItem(itemId)
+      handleCopyWithAutoActions(itemId)
     },
     {
       enableOnFormTags: ['input'],
@@ -519,7 +556,7 @@ export default function ClipboardHistoryPage() {
         return
       }
 
-      setCopiedItem(itemId)
+      handleCopyWithAutoActions(itemId)
     },
     {
       enabled: !isWindows,
@@ -538,7 +575,7 @@ export default function ClipboardHistoryPage() {
         return
       }
 
-      setPastedItem(itemId)
+      handleCopyPasteWithAutoActions(itemId)
     },
     {
       enableOnFormTags: ['input'],
@@ -568,9 +605,9 @@ export default function ClipboardHistoryPage() {
         // Handle pinned item selection
         resetKeyboardDeleteTimer()
         if (e.altKey || e.metaKey) {
-          setPastedItem(keyboardSelectedPinnedItemId)
+          handleCopyPasteWithAutoActions(keyboardSelectedPinnedItemId)
         } else {
-          setCopiedItem(keyboardSelectedPinnedItemId)
+          handleCopyWithAutoActions(keyboardSelectedPinnedItemId)
         }
       } else if (
         currentNavigationContext.value === 'pinnedClips' &&
@@ -597,9 +634,9 @@ export default function ClipboardHistoryPage() {
         // Reset keyboard delete confirmation when copying
         resetKeyboardDeleteTimer()
         if (e.altKey || e.metaKey) {
-          setPastedItem(keyboardSelectedItemId.value)
+          handleCopyPasteWithAutoActions(keyboardSelectedItemId.value)
         } else {
-          setCopiedItem(keyboardSelectedItemId.value)
+          handleCopyWithAutoActions(keyboardSelectedItemId.value)
         }
       } else if (
         (currentNavigationContext.value === 'history' ||
@@ -1625,6 +1662,35 @@ export default function ClipboardHistoryPage() {
     }
   }, [doRefetchFindClipboardHistory])
 
+  // Listen for main window show events to auto-focus search
+  useEffect(() => {
+    if (!isMainWindowAutoFocusSearchOnShow) {
+      return
+    }
+
+    const listenToWindowEventsUnlisten = listen('window-events', e => {
+      if (e.payload === 'main-window-show') {
+        // Clear search term and focus search input
+        setSearchTerm('')
+
+        // Focus search input with a small delay to ensure the window is fully shown
+        setTimeout(() => {
+          if (searchHistoryInputRef?.current) {
+            searchHistoryInputRef.current.focus()
+            // Clear the input value as well
+            searchHistoryInputRef.current.value = ''
+          }
+        }, 100)
+      }
+    })
+
+    return () => {
+      listenToWindowEventsUnlisten.then(unlisten => {
+        unlisten()
+      })
+    }
+  }, [isMainWindowAutoFocusSearchOnShow, setSearchTerm])
+
   useEffect(() => {
     createMenuItemFromHistoryId.value = null
     showClipsMoveOnBoardId.value = null
@@ -2295,8 +2361,8 @@ export default function ClipboardHistoryPage() {
                                               setSelectedHistoryItems={
                                                 setSelectedHistoryItems
                                               }
-                                              onCopy={setCopiedItem}
-                                              onCopyPaste={setPastedItem}
+                                              onCopy={handleCopyWithAutoActions}
+                                              onCopyPaste={handleCopyPasteWithAutoActions}
                                               pastingCountDown={
                                                 historyId === pastedItemValue
                                                   ? pastingCountDown
@@ -2922,8 +2988,8 @@ export default function ClipboardHistoryPage() {
                                               setSelectedHistoryItems={
                                                 setSelectedHistoryItems
                                               }
-                                              onCopy={setCopiedItem}
-                                              onCopyPaste={setPastedItem}
+                                              onCopy={handleCopyWithAutoActions}
+                                              onCopyPaste={handleCopyPasteWithAutoActions}
                                               pastingCountDown={
                                                 historyId === pastedItemValue
                                                   ? pastingCountDown
@@ -3292,8 +3358,8 @@ export default function ClipboardHistoryPage() {
                                     showLargeViewHistoryId.value = historyId
                                   }}
                                   setSelectHistoryItem={setSelectHistoryItem}
-                                  onCopy={setCopiedItem}
-                                  onCopyPaste={setPastedItem}
+                                  onCopy={handleCopyWithAutoActions}
+                                  onCopyPaste={handleCopyPasteWithAutoActions}
                                   pastingCountDown={
                                     inLargeViewItem.historyId === pastedItemValue
                                       ? pastingCountDown

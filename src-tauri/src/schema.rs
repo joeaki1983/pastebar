@@ -190,12 +190,12 @@ diesel::joinable!(link_metadata -> items (item_id));
 diesel::joinable!(tabs -> collections (collection_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
-    clipboard_history,
-    collection_clips,
-    collection_menu,
-    collections,
-    items,
-    link_metadata,
-    settings,
-    tabs,
+  clipboard_history,
+  collection_clips,
+  collection_menu,
+  collections,
+  items,
+  link_metadata,
+  settings,
+  tabs,
 );

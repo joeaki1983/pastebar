@@ -218,6 +218,9 @@ function App() {
           isMainWindowOnTop: settings.isMainWindowOnTop?.valueBool ?? false,
           isQuickPasteCopyOnly: settings.isQuickPasteCopyOnly?.valueBool ?? false,
           isQuickPasteAutoClose: settings.isQuickPasteAutoClose?.valueBool ?? true,
+          isMainWindowAutoCloseOnCopy: settings.isMainWindowAutoCloseOnCopy?.valueBool ?? false,
+          isMainWindowAutoInsertOnCopy: settings.isMainWindowAutoInsertOnCopy?.valueBool ?? false,
+          isMainWindowAutoFocusSearchOnShow: settings.isMainWindowAutoFocusSearchOnShow?.valueBool ?? true,
           isSingleClickToCopyPaste: settings.isSingleClickToCopyPaste?.valueBool ?? false,
           isSingleClickKeyboardFocus:
             settings.isSingleClickKeyboardFocus?.valueBool ?? false,
