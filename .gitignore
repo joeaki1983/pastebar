@@ -37,3 +37,40 @@ build/**/*
 # Added by cargo
 
 /target
+
+# Additional: Tauri/Rust targets and bundles
+src-tauri/target/
+src-tauri/**/bundle/**
+
+# App bundles / installers
+*.dmg
+*.pkg
+*.msi
+*.exe
+*.AppImage
+*.deb
+*.rpm
+*.snap
+*.tar.gz
+*.zip
+
+# UI build outputs
+/dist/
+packages/pastebar-app-ui/dist-ui/**
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Coverage and temp
+coverage/
+.nyc_output/
+/tmp/
+/temp/
+
+# Misc
+log/

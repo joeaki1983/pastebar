@@ -60,7 +60,7 @@ tauri-plugin-single-instance = { git = "https://github.com/kurdin/tauri-plugin-s
 tauri-plugin-deep-link = { path = "libs/deep-link", version = "0.1.2" }
 
 tracing = "0.1.37"
-tracing-subscriber = "0.3.16"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2.3"
 dirs = "5.0.0"
 diesel = { version = "2.1.4", features = ["sqlite", "chrono", "r2d2", "64-column-tables"] }
