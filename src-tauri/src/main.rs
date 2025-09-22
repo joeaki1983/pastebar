@@ -98,11 +98,14 @@ use objc::{msg_send, sel, sel_impl};
 use cocoa::{appkit::NSApplication, base::nil};
 
 #[cfg(target_os = "macos")]
+use dispatch::Queue;
+
+#[cfg(target_os = "macos")]
 fn return_focus_to_previous_window() {
-  unsafe {
+  Queue::main().exec_async(|| unsafe {
     let app = NSApplication::sharedApplication(nil);
     let _: () = msg_send![app, hide: nil];
-  }
+  });
 }
 
 #[derive(Serialize)]
