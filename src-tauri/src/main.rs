@@ -48,6 +48,7 @@ use crate::commands::clipboard_commands::write_image_to_clipboard;
 use crate::menu::DbItems;
 use crate::models::Setting;
 use crate::services::history_service;
+use crate::services::logging;
 use crate::services::settings_service::get_all_settings;
 use crate::services::translations::translations::Translations;
 use crate::services::utils::remove_special_bbcode_tags;
@@ -875,11 +876,27 @@ async fn main() {
 
                 // Convert relative path to absolute path
                 let absolute_path = db::to_absolute_image_path(&image_path);
-                let img_data =
-                  std::fs::read(&absolute_path).expect("Failed to read image from path");
+                let img_data = match std::fs::read(&absolute_path) {
+                  Ok(data) => data,
+                  Err(err) => {
+                    tracing::error!(
+                      "Failed to read image from {}: {}",
+                      absolute_path.display(),
+                      err
+                    );
+                    return;
+                  }
+                };
                 let base64_image = base64::encode(&img_data);
 
-                write_image_to_clipboard(base64_image).expect("Failed to write image to clipboard");
+                if let Err(err) = write_image_to_clipboard(base64_image) {
+                  tracing::error!(
+                    "Failed to write image clipboard content for item {}: {}",
+                    item_id,
+                    err
+                  );
+                  return;
+                }
               }
               if item.is_link.unwrap_or(false) {
                 let url = item.value.as_deref().unwrap_or("");
@@ -890,9 +907,14 @@ async fn main() {
                   debug_output(|| {
                     println!("Copying URL to clipboard: {}", final_text);
                   });
-                  manager
-                    .write_text(final_text)
-                    .expect("failed to write to clipboard");
+                  if let Err(err) = manager.write_text(&final_text) {
+                    tracing::error!(
+                      "Failed to copy tray URL for item {} to clipboard: {}",
+                      item_id,
+                      err
+                    );
+                    return;
+                  }
                 } else {
                   let _ = opener::open(ensure_url_or_email_prefix(url))
                     .map_err(|e| format!("Failed to open url: {}", e));
@@ -906,9 +928,14 @@ async fn main() {
                   debug_output(|| {
                     println!("Copying path to clipboard: {}", final_text);
                   });
-                  manager
-                    .write_text(final_text)
-                    .expect("failed to write to clipboard");
+                  if let Err(err) = manager.write_text(&final_text) {
+                    tracing::error!(
+                      "Failed to copy tray path for item {} to clipboard: {}",
+                      item_id,
+                      err
+                    );
+                    return;
+                  }
                 } else {
                   let _ = opener::open(path).map_err(|e| format!("Failed to open path: {}", e));
                 }
@@ -919,9 +946,14 @@ async fn main() {
                   debug_output(|| {
                     println!("Copying item name to clipboard: {}", final_text);
                   });
-                  manager
-                    .write_text(final_text)
-                    .expect("failed to write to clipboard");
+                  if let Err(err) = manager.write_text(&final_text) {
+                    tracing::error!(
+                      "Failed to copy tray item name {} to clipboard: {}",
+                      item_id,
+                      err
+                    );
+                    return;
+                  }
                 } else if let Some(ref item_value) = item.value {
                   let text_to_copy = remove_special_bbcode_tags(item_value);
                   // Apply global templates
@@ -929,9 +961,14 @@ async fn main() {
                   debug_output(|| {
                     println!("Copying item value to clipboard: {}", final_text);
                   });
-                  manager
-                    .write_text(final_text)
-                    .expect("failed to write to clipboard");
+                  if let Err(err) = manager.write_text(&final_text) {
+                    tracing::error!(
+                      "Failed to copy tray item value {} to clipboard: {}",
+                      item_id,
+                      err
+                    );
+                    return;
+                  }
                 }
               }
 
@@ -1021,11 +1058,27 @@ async fn main() {
 
                 // Convert relative path to absolute path
                 let absolute_path = db::to_absolute_image_path(&image_path);
-                let img_data =
-                  std::fs::read(&absolute_path).expect("Failed to read image from path");
+                let img_data = match std::fs::read(&absolute_path) {
+                  Ok(data) => data,
+                  Err(err) => {
+                    tracing::error!(
+                      "Failed to read history image from {}: {}",
+                      absolute_path.display(),
+                      err
+                    );
+                    return;
+                  }
+                };
                 let base64_image = base64::encode(&img_data);
 
-                write_image_to_clipboard(base64_image).expect("Failed to write image to clipboard");
+                if let Err(err) = write_image_to_clipboard(base64_image) {
+                  tracing::error!(
+                    "Failed to copy history image {} to clipboard: {}",
+                    item_id,
+                    err
+                  );
+                  return;
+                }
               } else {
                 let value = match detailed_history_item.value {
                   Some(val) => val,
@@ -1033,9 +1086,14 @@ async fn main() {
                 };
                 // Apply global templates
                 let final_text = apply_global_templates(&value, &settings_map);
-                manager
-                  .write_text(final_text)
-                  .expect("failed to write to clipboard");
+                if let Err(err) = manager.write_text(&final_text) {
+                  tracing::error!(
+                    "Failed to copy history item {} to clipboard: {}",
+                    item_id,
+                    err
+                  );
+                  return;
+                }
               }
 
               #[cfg(target_os = "windows")]
@@ -1157,6 +1215,12 @@ async fn main() {
       }
     })
     .setup(|app| {
+      let log_path = logging::init_logging(app);
+      logging::install_panic_hook(log_path.clone());
+      if let Some(path) = log_path.as_ref() {
+        tracing::info!("Logging to {}", path.display());
+      }
+
       db::init(app);
       let app_settings = get_all_settings(None).unwrap_or_default();
       cron_jobs::setup_cron_jobs();

@@ -86,20 +86,23 @@ pub struct TemplateOption {
 pub fn copy_text(app_handle: AppHandle, text: String) -> String {
   let mut manager = app_handle.clipboard_manager();
 
-  manager
-    .write_text(text)
-    .expect("failed to write to clipboard");
-
-  "ok".to_string()
+  match manager.write_text(text) {
+    Ok(_) => "ok".to_string(),
+    Err(err) => {
+      tracing::error!("Failed to write text to clipboard: {}", err);
+      "Failed to write to clipboard".to_string()
+    }
+  }
 }
 
 #[tauri::command]
 pub fn copy_paste(app_handle: AppHandle, text: String, delay: i32) -> String {
   let mut manager = app_handle.clipboard_manager();
 
-  manager
-    .write_text(text)
-    .expect("failed to write to clipboard");
+  if let Err(err) = manager.write_text(text) {
+    tracing::error!("Failed to write text to clipboard before paste: {}", err);
+    return "Failed to write to clipboard".to_string();
+  }
 
   #[cfg(target_os = "macos")]
   fn query_accessibility_permissions() -> bool {
@@ -140,7 +143,11 @@ pub fn copy_history_item(app_handle: AppHandle, history_id: String) -> String {
         match std::fs::read(&absolute_path) {
           Ok(img_data) => base64::encode(&img_data),
           Err(e) => {
-            eprintln!("Failed to read image from path: {}", e);
+            tracing::error!(
+              "Failed to read history image from {}: {}",
+              absolute_path.display(),
+              e
+            );
             IMAGE_NOT_FOUND_BASE64.to_string()
           }
         }
@@ -151,7 +158,7 @@ pub fn copy_history_item(app_handle: AppHandle, history_id: String) -> String {
     match write_image_to_clipboard(base64_image) {
       Ok(_) => "ok".to_string(),
       Err(e) => {
-        eprintln!("Failed to write image to clipboard: {}", e);
+        tracing::error!("Failed to write history image to clipboard: {}", e);
         "Failed to write image to clipboard".to_string()
       }
     }
@@ -164,7 +171,7 @@ pub fn copy_history_item(app_handle: AppHandle, history_id: String) -> String {
     match manager.write_text(value) {
       Ok(_) => "ok".to_string(),
       Err(e) => {
-        eprintln!("Failed to write to clipboard: {}", e);
+        tracing::error!("Failed to copy history value to clipboard: {}", e);
         "Failed to write to clipboard".to_string()
       }
     }
@@ -178,7 +185,7 @@ pub fn copy_paste_history_item(app_handle: AppHandle, history_id: String, delay:
 }
 
 pub fn write_image_to_clipboard(base64_image: String) -> Result<(), String> {
-  let mut clipboard = Clipboard::new().unwrap();
+  let mut clipboard = Clipboard::new().map_err(|err| err.to_string())?;
   let decoded = base64::decode(&base64_image).map_err(|err| err.to_string())?;
   let img = image::load_from_memory(&decoded).map_err(|err| err.to_string())?;
   let pixels = img
@@ -208,7 +215,7 @@ pub async fn copy_clip_item(
   let item = match get_item_by_id(item_id.clone()) {
     Ok(i) => i,
     Err(e) => {
-      eprintln!("Failed to find item: {}", e);
+      tracing::error!("Failed to find item {}: {}", item_id, e);
       return "Item not found".to_string();
     }
   };
@@ -249,20 +256,22 @@ pub async fn copy_clip_item(
               let settings_map = app_settings.lock().unwrap();
               let final_text = apply_global_templates(&filled_template, &settings_map);
 
-              manager
-                .write_text(&final_text)
-                .expect("Failed to write to clipboard");
-
-              "ok".to_string()
+              match manager.write_text(&final_text) {
+                Ok(_) => "ok".to_string(),
+                Err(err) => {
+                  tracing::error!("Failed to copy template output to clipboard: {}", err);
+                  "Failed to write to clipboard".to_string()
+                }
+              }
             }
             Err(e) => {
-              eprintln!("Failed to fill template: {}", e);
+              tracing::error!("Failed to fill template: {}", e);
               return "Failed to fill template".to_string();
             }
           }
         }
         Err(e) => {
-          eprintln!("Failed to deserialize template options: {}", e);
+          tracing::error!("Failed to deserialize template options: {}", e);
           return "Template options are not valid".to_string();
         }
       }
@@ -317,9 +326,10 @@ pub async fn copy_clip_item(
 
       match run_shell_command(command, exec_home_dir, output_template, output_regex_filter) {
         Ok(response) => {
-          manager
-            .write_text(&response)
-            .expect("Failed to write to clipboard");
+          if let Err(err) = manager.write_text(&response) {
+            tracing::error!("Failed to copy command output to clipboard: {}", err);
+            return "Failed to write to clipboard".to_string();
+          }
           handle_response(&app_handle, item_id.clone(), response);
           "ok".to_string()
         }
@@ -357,14 +367,15 @@ pub async fn copy_clip_item(
       match run_web_scraping(request).await {
         Ok(response) => {
           let content = response.scrapped_body.unwrap_or(response.body);
-          manager
-            .write_text(&content)
-            .expect("Failed to write to clipboard");
+          if let Err(err) = manager.write_text(&content) {
+            tracing::error!("Failed to copy scraping result to clipboard: {}", err);
+            return "Failed to write to clipboard".to_string();
+          }
           handle_response(&app_handle, item_id.clone(), content);
           "ok".to_string()
         }
         Err(e) => {
-          eprintln!("Web scraping failed: {}", e);
+          tracing::error!("Web scraping failed: {}", e);
           handle_response(
             &app_handle,
             item_id.clone(),
@@ -404,14 +415,15 @@ pub async fn copy_clip_item(
             return "Web request failed".to_string();
           }
 
-          manager
-            .write_text(&content)
-            .expect("Failed to write to clipboard");
+          if let Err(err) = manager.write_text(&content) {
+            tracing::error!("Failed to copy web request result to clipboard: {}", err);
+            return "Failed to write to clipboard".to_string();
+          }
           handle_response(&app_handle, item_id.clone(), content);
           "ok".to_string()
         }
         Err(e) => {
-          eprintln!("Web request failed: {}", e);
+          tracing::error!("Web request failed: {}", e);
           handle_response(
             &app_handle,
             item_id.clone(),
@@ -431,7 +443,11 @@ pub async fn copy_clip_item(
         match std::fs::read(&absolute_path) {
           Ok(img_data) => base64::encode(&img_data),
           Err(e) => {
-            eprintln!("Failed to read image from path: {}", e);
+            tracing::error!(
+              "Failed to read clip image from {}: {}",
+              absolute_path.display(),
+              e
+            );
             IMAGE_NOT_FOUND_BASE64.to_string()
           }
         }
@@ -442,7 +458,7 @@ pub async fn copy_clip_item(
     match write_image_to_clipboard(base64_image) {
       Ok(_) => "ok".to_string(),
       Err(e) => {
-        eprintln!("Failed to write image to clipboard: {}", e);
+        tracing::error!("Failed to write clip image to clipboard: {}", e);
         "Failed to write image to clipboard".to_string()
       }
     }
@@ -461,7 +477,7 @@ pub async fn copy_clip_item(
     match manager.write_text(final_text) {
       Ok(_) => "ok".to_string(),
       Err(e) => {
-        eprintln!("Failed to write to clipboard: {}", e);
+        tracing::error!("Failed to copy clip text to clipboard: {}", e);
         "Failed to write to clipboard".to_string()
       }
     }
@@ -486,7 +502,7 @@ pub async fn copy_paste_clip_item_from_menu(
     let item = match get_item_by_id(item_id.clone()) {
       Ok(i) => i,
       Err(e) => {
-        eprintln!("Failed to find item: {}", e);
+        tracing::error!("Failed to find item {}: {}", item_id, e);
         return "Item not found".to_string();
       }
     };
@@ -534,7 +550,7 @@ pub async fn copy_paste_clip_item(
   let item = match get_item_by_id(item_id.clone()) {
     Ok(i) => i,
     Err(e) => {
-      eprintln!("Failed to find item: {}", e);
+      tracing::error!("Failed to find item {}: {}", item_id, e);
       return "Item not found".to_string();
     }
   };

@@ -298,7 +298,7 @@ where
       "clipboard://clipboard-monitor/update/error",
       error.to_string(),
     );
-    eprintln!("Error: {}", error);
+    tracing::error!("Clipboard monitor error: {}", error);
     CallbackResult::Next
   }
 }
@@ -311,18 +311,18 @@ pub struct ClipboardManager {
 
 impl ClipboardManager {
   pub fn read_text(&self) -> Result<String, String> {
-    let mut clipboard = Clipboard::new().unwrap();
+    let mut clipboard = Clipboard::new().map_err(|err| err.to_string())?;
     clipboard.get_text().map_err(|err| err.to_string())
   }
 
   pub fn write_text(&self, text: String) -> Result<(), String> {
-    let mut clipboard = Clipboard::new().unwrap();
+    let mut clipboard = Clipboard::new().map_err(|err| err.to_string())?;
     clipboard.set_text(text).map_err(|err| err.to_string())
   }
 
   // write_image function remains unchanged as it's writing, not reading
   pub fn write_image(&self, base64_image: String) -> Result<(), String> {
-    let mut clipboard = Clipboard::new().unwrap();
+    let mut clipboard = Clipboard::new().map_err(|err| err.to_string())?;
     let decoded = general_purpose::STANDARD_NO_PAD
       .decode(base64_image)
       .map_err(|err| err.to_string())?;
@@ -345,7 +345,7 @@ impl ClipboardManager {
   }
 
   pub fn read_image(&self) -> Result<String, String> {
-    let mut clipboard = Clipboard::new().unwrap();
+    let mut clipboard = Clipboard::new().map_err(|err| err.to_string())?;
     let image = clipboard.get_image().map_err(|err| err.to_string())?;
 
     // Handle stride alignment
@@ -401,7 +401,7 @@ impl ClipboardManager {
 
   // Function 2: Returns Vec<u8> of PNG file data
   pub fn read_image_binary(&self) -> Result<Vec<u8>, String> {
-    let mut clipboard = Clipboard::new().unwrap();
+    let mut clipboard = Clipboard::new().map_err(|err| err.to_string())?;
     let image = clipboard.get_image().map_err(|err| err.to_string())?;
 
     // Handle stride alignment
