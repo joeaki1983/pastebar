@@ -875,7 +875,8 @@ async fn main() {
                 };
 
                 // Convert relative path to absolute path
-                let absolute_path = db::to_absolute_image_path(&image_path);
+                let absolute_path =
+                  std::path::PathBuf::from(db::to_absolute_image_path(image_path));
                 let img_data = match std::fs::read(&absolute_path) {
                   Ok(data) => data,
                   Err(err) => {
@@ -1057,7 +1058,8 @@ async fn main() {
                 };
 
                 // Convert relative path to absolute path
-                let absolute_path = db::to_absolute_image_path(&image_path);
+                let absolute_path =
+                  std::path::PathBuf::from(db::to_absolute_image_path(&image_path));
                 let img_data = match std::fs::read(&absolute_path) {
                   Ok(data) => data,
                   Err(err) => {
