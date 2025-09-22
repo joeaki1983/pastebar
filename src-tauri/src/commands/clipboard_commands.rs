@@ -139,7 +139,7 @@ pub fn copy_history_item(app_handle: AppHandle, history_id: String) -> String {
     let base64_image = match history_item.image_path_full_res {
       Some(path) => {
         // Convert relative path to absolute path
-        let absolute_path = crate::db::to_absolute_image_path(&path);
+        let absolute_path = std::path::PathBuf::from(crate::db::to_absolute_image_path(&path));
         match std::fs::read(&absolute_path) {
           Ok(img_data) => base64::encode(&img_data),
           Err(e) => {
@@ -439,7 +439,7 @@ pub async fn copy_clip_item(
     let base64_image = match item.image_path_full_res {
       Some(path) => {
         // Convert relative path to absolute path
-        let absolute_path = crate::db::to_absolute_image_path(&path);
+        let absolute_path = std::path::PathBuf::from(crate::db::to_absolute_image_path(&path));
         match std::fs::read(&absolute_path) {
           Ok(img_data) => base64::encode(&img_data),
           Err(e) => {
