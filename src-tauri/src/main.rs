@@ -884,7 +884,7 @@ async fn main() {
                   Err(err) => {
                     tracing::error!(
                       "Failed to read image from {}: {}",
-                      absolute_path.display(),
+                      &absolute_path,
                       err
                     );
                     return;
@@ -1066,7 +1066,7 @@ async fn main() {
                   Err(err) => {
                     tracing::error!(
                       "Failed to read history image from {}: {}",
-                      absolute_path.display(),
+                      &absolute_path,
                       err
                     );
                     return;
@@ -1075,11 +1075,11 @@ async fn main() {
                 let base64_image = base64::encode(&img_data);
 
                 if let Err(err) = write_image_to_clipboard(base64_image) {
-                  tracing::error!(
-                    "Failed to copy history image {} to clipboard: {}",
-                    item_id,
-                    err
-                  );
+                    tracing::error!(
+                      "Failed to copy history image {} to clipboard: {}",
+                      item_id,
+                      err
+                    );
                   return;
                 }
               } else {
