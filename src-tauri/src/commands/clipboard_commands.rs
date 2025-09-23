@@ -145,7 +145,7 @@ pub fn copy_history_item(app_handle: AppHandle, history_id: String) -> String {
           Err(e) => {
             tracing::error!(
               "Failed to read history image from {}: {}",
-              absolute_path.display(),
+              &absolute_path,
               e
             );
             IMAGE_NOT_FOUND_BASE64.to_string()
@@ -445,7 +445,7 @@ pub async fn copy_clip_item(
           Err(e) => {
             tracing::error!(
               "Failed to read clip image from {}: {}",
-              absolute_path.display(),
+              &absolute_path,
               e
             );
             IMAGE_NOT_FOUND_BASE64.to_string()

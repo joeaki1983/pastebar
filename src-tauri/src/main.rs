@@ -98,11 +98,14 @@ use objc::{msg_send, sel, sel_impl};
 use cocoa::{appkit::NSApplication, base::nil};
 
 #[cfg(target_os = "macos")]
+use dispatch::Queue;
+
+#[cfg(target_os = "macos")]
 fn return_focus_to_previous_window() {
-  unsafe {
+  Queue::main().exec_async(|| unsafe {
     let app = NSApplication::sharedApplication(nil);
     let _: () = msg_send![app, hide: nil];
-  }
+  });
 }
 
 #[derive(Serialize)]
@@ -881,7 +884,7 @@ async fn main() {
                   Err(err) => {
                     tracing::error!(
                       "Failed to read image from {}: {}",
-                      absolute_path.display(),
+                      &absolute_path,
                       err
                     );
                     return;
@@ -1063,7 +1066,7 @@ async fn main() {
                   Err(err) => {
                     tracing::error!(
                       "Failed to read history image from {}: {}",
-                      absolute_path.display(),
+                      &absolute_path,
                       err
                     );
                     return;
@@ -1072,11 +1075,11 @@ async fn main() {
                 let base64_image = base64::encode(&img_data);
 
                 if let Err(err) = write_image_to_clipboard(base64_image) {
-                  tracing::error!(
-                    "Failed to copy history image {} to clipboard: {}",
-                    item_id,
-                    err
-                  );
+                    tracing::error!(
+                      "Failed to copy history image {} to clipboard: {}",
+                      item_id,
+                      err
+                    );
                   return;
                 }
               } else {
