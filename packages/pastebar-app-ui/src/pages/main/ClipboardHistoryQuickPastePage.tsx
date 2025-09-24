@@ -12,6 +12,7 @@ import { Prism } from 'prism-react-renderer'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import { VariableSizeList } from 'react-window'
+import type { VariableSizeList as VariableSizeListComponent } from 'react-window'
 import InfiniteLoader from 'react-window-infinite-loader'
 import useResizeObserver from 'use-resize-observer'
 
@@ -36,6 +37,12 @@ import {
 import { useDebounce } from '~/hooks/use-debounce'
 import { useSignal } from '~/hooks/use-signal'
 
+import {
+  RowHeightCache,
+  ScrollVelocityTracker,
+  calculateDynamicOverscan,
+} from '~/lib/performance-utils'
+
 import { ClipboardHistoryQuickPasteRow } from '../components/ClipboardHistory/ClipboardHistoryQuickPasteRow'
 
 const altKeys = ['Alt', 'Meta']
@@ -47,6 +54,7 @@ const keyDown = ['ArrowDown', 'Down']
 const keyEnter = ['Enter']
 const keyEscape = ['Escape']
 const keyHome = ['Home']
+const DEFAULT_OVERSCAN = 10
 
 const loadPrismComponents = async () => {
   // @ts-expect-error - global Prism
@@ -233,20 +241,47 @@ export default function ClipboardHistoryQuickPastePage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [currentTopItemTimeAgo, setCurrentTopItemTimeAgo] = useState('')
 
-  const listRef = useRef(null)
-  const rowHeights = useRef<{ [key: string]: number }>({})
+  const listRef = useRef<VariableSizeListComponent | null>(null)
+  const rowHeightCache = useRef(new RowHeightCache(60))
   const searchHistoryInputRef = useRef<HTMLInputElement | null>(null)
+  const scrollVelocityTracker = useRef(new ScrollVelocityTracker())
+  const [dynamicOverscan, setDynamicOverscan] = useState(DEFAULT_OVERSCAN)
+  const dynamicOverscanRef = useRef(dynamicOverscan)
+  const isScrollingRef = useRef(isScrolling)
 
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
-  const onScrollCallback = throttle(
-    () => {
-      if (!isScrolling) {
-        setIsScrolling(true)
-      }
-    },
-    300,
-    { leading: true }
+  useEffect(() => {
+    dynamicOverscanRef.current = dynamicOverscan
+  }, [dynamicOverscan])
+
+  useEffect(() => {
+    isScrollingRef.current = isScrolling
+  }, [isScrolling])
+
+  const onScrollCallback = useMemo(
+    () =>
+      throttle(
+        (event: Event) => {
+          if (!isScrollingRef.current) {
+            setIsScrolling(true)
+          }
+
+          const target = event.target
+          if (target instanceof HTMLElement) {
+            const velocity = scrollVelocityTracker.current.update(target.scrollTop)
+            const nextOverscan = calculateDynamicOverscan(velocity)
+
+            if (nextOverscan !== dynamicOverscanRef.current) {
+              dynamicOverscanRef.current = nextOverscan
+              setDynamicOverscan(nextOverscan)
+            }
+          }
+        },
+        100,
+        { leading: true, trailing: true }
+      ),
+    [setIsScrolling]
   )
 
   const hasSearchOrFilter = useMemo(() => {
@@ -434,11 +469,39 @@ export default function ClipboardHistoryQuickPastePage() {
   }, [])
 
   useEffect(() => {
-    if (historyListSimpleBarRef.current) {
-      setHistoryListSimpleBar(historyListSimpleBarRef)
-      historyListSimpleBarRef.current.addEventListener('scroll', onScrollCallback)
+    const scrollContainer = historyListSimpleBarRef.current
+
+    if (!scrollContainer) {
+      return
     }
-  }, [historyListSimpleBarRef.current])
+
+    setHistoryListSimpleBar(historyListSimpleBarRef)
+    const listener = onScrollCallback as EventListener
+
+    scrollContainer.addEventListener('scroll', listener)
+
+    return () => {
+      scrollContainer.removeEventListener('scroll', listener)
+    }
+  }, [historyListSimpleBarRef.current, onScrollCallback, setHistoryListSimpleBar])
+
+  useEffect(() => {
+    return () => {
+      onScrollCallback.cancel()
+    }
+  }, [onScrollCallback])
+
+  useEffect(() => {
+    rowHeightCache.current.clear()
+    // @ts-expect-error - resetAfterIndex is not in the types
+    listRef.current?.resetAfterIndex?.(0)
+    scrollVelocityTracker.current.reset()
+
+    if (dynamicOverscanRef.current !== DEFAULT_OVERSCAN) {
+      dynamicOverscanRef.current = DEFAULT_OVERSCAN
+      setDynamicOverscan(DEFAULT_OVERSCAN)
+    }
+  }, [debouncedSearchTerm, historyFilters, codeFilters, appFilters])
 
   useEffect(() => {
     if (
@@ -461,13 +524,16 @@ export default function ClipboardHistoryQuickPastePage() {
   }
 
   function getRowHeight(index: number): number {
-    return rowHeights.current[index] || 60
+    return rowHeightCache.current.get(index)
   }
 
   function setRowHeight(index: number, size: number) {
-    // @ts-expect-error - resetAfterIndex is not in the types
-    listRef.current?.resetAfterIndex && listRef.current?.resetAfterIndex(0)
-    rowHeights.current = { ...rowHeights.current, [index]: size }
+    const didUpdate = rowHeightCache.current.set(index, size)
+
+    if (didUpdate) {
+      // @ts-expect-error - resetAfterIndex is not in the types
+      listRef.current?.resetAfterIndex?.(index)
+    }
   }
 
   const setBrokenImageItem = useCallback(
@@ -975,7 +1041,7 @@ export default function ClipboardHistoryQuickPastePage() {
                   {({ onItemsRendered, ref }) => {
                     return (
                       <VariableSizeList
-                        overscanCount={10}
+                        overscanCount={dynamicOverscan}
                         style={{ overflowX: 'hidden' }}
                         height={
                           historyPanelHeight
