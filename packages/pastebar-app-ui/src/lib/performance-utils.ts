@@ -135,11 +135,15 @@ export class RowHeightCache {
     return this.heights.get(index) ?? this.defaultHeight
   }
 
-  set(index: number, height: number): void {
-    // Only update if height actually changed
-    if (this.heights.get(index) !== height) {
+  set(index: number, height: number): boolean {
+    const previousHeight = this.heights.get(index)
+
+    if (previousHeight !== height) {
       this.heights.set(index, height)
+      return true
     }
+
+    return false
   }
 
   clear(): void {

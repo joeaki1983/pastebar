@@ -1774,9 +1774,12 @@ export default function ClipboardHistoryPage() {
   }
 
   function setRowHeight(index: number, size: number) {
-    rowHeightCache.current.set(index, size)
-    // @ts-expect-error - resetAfterIndex is not in the types
-    listRef.current?.resetAfterIndex?.(index)
+    const didUpdate = rowHeightCache.current.set(index, size)
+
+    if (didUpdate) {
+      // @ts-expect-error - resetAfterIndex is not in the types
+      listRef.current?.resetAfterIndex?.(index)
+    }
   }
 
   // Create sensors at the top level
